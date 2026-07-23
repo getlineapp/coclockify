@@ -102,6 +102,8 @@ struct ContentView: View {
             }
             .buttonStyle(.dsStandardIcon)
             .disabled(appState.isLoading || !appState.isConnected)
+            .accessibilityLabel(L10n.refresh)
+            .help(L10n.refresh)
 
             Button {
                 showSettings = true
@@ -110,6 +112,8 @@ struct ContentView: View {
                     .font(.system(size: 11, weight: .semibold))
             }
             .buttonStyle(.dsStandardIcon)
+            .accessibilityLabel(L10n.settings)
+            .help(L10n.settings)
         }
     }
 
@@ -200,11 +204,18 @@ struct ContentView: View {
             .padding(.bottom, 6)
 
             HStack(alignment: .bottom) {
-                ElapsedText(text: appState.elapsedText, font: DS.Font.elapsedHero)
-                    .onTapGesture {
-                        editingEntry = entry
-                    }
-                    .help("Kliknij aby edytować wpis")
+                // Was a bare `.onTapGesture`, which is unreachable by keyboard
+                // and invisible to VoiceOver — editing the running entry was
+                // mouse-only. A plain-styled Button keeps the visuals identical.
+                Button {
+                    editingEntry = entry
+                } label: {
+                    ElapsedText(text: appState.elapsedText, font: DS.Font.elapsedHero)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.editRunningEntry)
+                .accessibilityValue(appState.elapsedText)
+                .help(L10n.editRunningEntry)
 
                 Spacer()
 
@@ -262,6 +273,8 @@ struct ContentView: View {
                     .font(.system(size: 13, weight: .regular))
             }
             .buttonStyle(.dsGhostIcon)
+            .accessibilityLabel(L10n.createProjectTitle)
+            .help(L10n.createProjectTitle)
         }
     }
 
@@ -302,10 +315,15 @@ struct ContentView: View {
                                 Task { await appState.startTimer(using: item.description, projectId: item.projectId) }
                             },
                             onEditLastEntry: {
+                                // A favourite can outlive every entry that produced it
+                                // (or be pinned before any exists). Previously this
+                                // menu item just did nothing, with no explanation.
                                 if let entry = appState.recentEntries.first(where: {
                                     ($0.description ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == item.description
                                 }) {
                                     editingEntry = entry
+                                } else {
+                                    appState.statusMessage = L10n.entryNotFound
                                 }
                             },
                             isStartDisabled: !appState.canStartTimer || (appState.forceProjects && item.projectId == nil)
@@ -368,10 +386,12 @@ private struct QuickStartRow: View {
             } label: {
                 Image(systemName: item.isFavorite ? "star.fill" : "star")
                     .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(item.isFavorite ? Color(red: 0.91, green: 0.65, blue: 0.23) : DS.Palette.ink4)
+                    .foregroundStyle(item.isFavorite ? Color(red: 0.75, green: 0.51, blue: 0.10) : DS.Palette.ink4)
                     .frame(width: DS.Metric.starWidth, alignment: .center)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(item.isFavorite ? L10n.a11yFavoriteRemove : L10n.a11yFavoriteAdd)
+            .help(item.isFavorite ? L10n.a11yFavoriteRemove : L10n.a11yFavoriteAdd)
 
             Text(item.description)
                 .font(DS.Font.qsDesc)
@@ -410,6 +430,7 @@ private struct QuickStartRow: View {
             .buttonStyle(.plain)
             .disabled(isStartDisabled)
             .onHover { isStartHovered = $0 }
+            .accessibilityLabel(L10n.a11yStartEntry(item.description))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
@@ -504,6 +525,15 @@ private struct SettingsSheet: View {
                         .padding(.top, -4)
                 }
 
+                // A failed Keychain write is otherwise invisible until the key
+                // turns out to be gone on the next launch.
+                if appState.keychainUnavailable {
+                    Text(L10n.errorKeychainUnavailable)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(DS.Palette.bad)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
                 formRow(label: L10n.settingsWorkspaceHint) {
                     TextField(L10n.settingsWorkspaceHint, text: $appState.workspaceOverride)
                         .textFieldStyle(.ds)
@@ -588,6 +618,7 @@ private struct EntryEditSheet: View {
     @State private var end: Date
     @State private var selectedProjectId: String?
     @State private var isSaving: Bool = false
+    @State private var saveError: String?
 
     private var isValid: Bool {
         !hasEndDate || end >= start
@@ -672,6 +703,18 @@ private struct EntryEditSheet: View {
             }
             .padding(.bottom, 14)
 
+            // The sheet used to stay open with no explanation when a save failed —
+            // the reason only ever landed in the main window's status bar, which is
+            // covered by this sheet.
+            if let saveError {
+                Text(saveError)
+                    .font(DS.Font.warnText)
+                    .foregroundStyle(DS.Palette.bad)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 10)
+                    .accessibilityAddTraits(.isStaticText)
+            }
+
             HStack {
                 Spacer()
                 Button(L10n.editEntryCancel) {
@@ -684,12 +727,17 @@ private struct EntryEditSheet: View {
                     guard !isSaving else { return }
 
                     isSaving = true
+                    saveError = nil
                     Task {
                         let saved = await onSave(description, start, hasEndDate ? end : nil, selectedProjectId)
                         isSaving = false
 
                         if saved {
                             dismiss()
+                        } else {
+                            saveError = appState.statusMessage.isEmpty
+                                ? L10n.errorUnknownApi
+                                : appState.statusMessage
                         }
                     }
                 }
@@ -712,6 +760,7 @@ private struct CreateProjectSheet: View {
     @State private var name: String = ""
     @State private var selectedColor: String = "#c9724c"
     @State private var isSaving: Bool = false
+    @State private var saveError: String?
 
     private let presetColors = [
         "#c9724c", "#7d6eb8", "#c24e7a", "#d08a3c",
@@ -747,6 +796,15 @@ private struct CreateProjectSheet: View {
             }
             .padding(.bottom, 14)
 
+            if let saveError {
+                Text(saveError)
+                    .font(DS.Font.warnText)
+                    .foregroundStyle(DS.Palette.bad)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 10)
+                    .accessibilityAddTraits(.isStaticText)
+            }
+
             HStack {
                 Spacer()
                 Button(L10n.editEntryCancel) {
@@ -759,12 +817,17 @@ private struct CreateProjectSheet: View {
                     guard !isSaving else { return }
 
                     isSaving = true
+                    saveError = nil
                     Task {
                         let created = await appState.createProject(name: name, color: selectedColor)
                         isSaving = false
 
                         if created {
                             dismiss()
+                        } else {
+                            saveError = appState.statusMessage.isEmpty
+                                ? L10n.errorUnknownApi
+                                : appState.statusMessage
                         }
                     }
                 }
@@ -804,5 +867,10 @@ private struct ColorSwatch: View {
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
+        // Selection was signalled by a ring alone — colour/shape only, with no
+        // name and no state exposed to assistive technology.
+        .accessibilityLabel(L10n.a11yColor(hex))
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
+        .help(hex)
     }
 }

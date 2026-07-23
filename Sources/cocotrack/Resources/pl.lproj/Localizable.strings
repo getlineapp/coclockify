@@ -2,22 +2,22 @@
 "settings" = "Ustawienia";
 
 /* Connection */
-"status.connected" = "Polaczono";
-"status.needsConnection" = "Wymaga polaczenia";
+"status.connected" = "Połączono";
+"status.needsConnection" = "Wymaga połączenia";
 "status.notConfigured" = "Brak konfiguracji";
 
 /* Timer */
 "timer.active" = "Aktywny timer";
 "timer.new" = "Nowy timer";
 "timer.placeholder" = "Nad czym pracujesz?";
-"timer.configureConnection" = "Skonfiguruj polaczenie z Clockify";
+"timer.configureConnection" = "Skonfiguruj połączenie z Clockify";
 
 /* Sections */
 "section.quickStart" = "Szybki start";
-"section.quickStart.empty" = "Brak historii. Po kilku wpisach pojawia sie tu gotowe timery.";
+"section.quickStart.empty" = "Brak historii. Po kilku wpisach pojawią się tu gotowe timery.";
 "section.recentLog" = "Ostatnie wpisy";
-"section.recentLog.empty" = "Brak wpisow. Wpisy pojawia sie po pierwszym timerze.";
-"day.today" = "Dzis";
+"section.recentLog.empty" = "Brak wpisów. Wpisy pojawią się po pierwszym timerze.";
+"day.today" = "Dziś";
 "day.yesterday" = "Wczoraj";
 
 /* Entry details */
@@ -25,61 +25,62 @@
 "entry.inProgress" = "w toku";
 "entry.edit" = "Edytuj";
 "entry.editLast" = "Edytuj ostatni wpis";
+"entry.editRunning" = "Edytuj trwający wpis";
 
 /* Status bar */
 "status.ready" = "Gotowe";
-"status.autoRefresh" = "Auto refresh: 30s";
+"status.autoRefresh" = "Odświeżanie: co 30 s";
 
 /* Settings sheet */
 "settings.title" = "Ustawienia";
-"settings.subtitle" = "Konfiguracja API jest schowana tutaj, zeby glowny ekran byl skupiony na timerach.";
+"settings.subtitle" = "Konfiguracja API jest schowana tutaj, żeby główny ekran był skupiony na timerach.";
 "settings.workspaceHint" = "Workspace ID (opcjonalnie)";
 "settings.close" = "Zamknij";
-"settings.saveConnect" = "Zapisz i polacz";
-"settings.userLabel" = "User: %@";
+"settings.saveConnect" = "Zapisz i połącz";
+"settings.userLabel" = "Użytkownik: %@";
 
 /* Entry edit sheet */
 "editEntry.title" = "Edycja wpisu";
 "editEntry.description" = "Opis";
-"editEntry.hasEnd" = "Wpis ma czas zakonczenia";
+"editEntry.hasEnd" = "Wpis ma czas zakończenia";
 "editEntry.end" = "Koniec";
 "editEntry.cancel" = "Anuluj";
 "editEntry.save" = "Zapisz";
 
 /* AppState status messages */
-"appState.connectedAs" = "Polaczono jako %@.";
+"appState.connectedAs" = "Połączono jako %@.";
 "appState.timerStarted" = "Timer uruchomiony.";
 "appState.timerStopped" = "Timer zatrzymany.";
-"appState.dataRefreshed" = "Dane odswiezone.";
+"appState.dataRefreshed" = "Dane odświeżone.";
 "appState.entryUpdated" = "Wpis zaktualizowany.";
-"appState.connectFirst" = "Najpierw kliknij Polacz.";
-"appState.fillApiKey" = "Uzupelnij API key Clockify.";
-"appState.workspaceError" = "Nie udalo sie ustalic workspace ID.";
-"appState.operationInProgress" = "Operacja w toku. Poczekaj chwile.";
-"appState.timerAlreadyRunning" = "Timer jest juz uruchomiony.";
+"appState.connectFirst" = "Najpierw kliknij Połącz.";
+"appState.fillApiKey" = "Uzupełnij API key Clockify.";
+"appState.workspaceError" = "Nie udało się ustalić workspace ID.";
+"appState.operationInProgress" = "Operacja w toku. Poczekaj chwilę.";
+"appState.timerAlreadyRunning" = "Timer jest już uruchomiony.";
 "appState.noRunningTimer" = "Brak uruchomionego timera do zatrzymania.";
-"appState.endBeforeStart" = "Czas zakonczenia nie moze byc wczesniejszy niz start.";
-"appState.projectNotFound" = "Wybrany projekt juz nie istnieje.";
+"appState.endBeforeStart" = "Czas zakończenia nie może być wcześniejszy niż start.";
+"appState.projectNotFound" = "Wybrany projekt już nie istnieje.";
 "appState.projectNameRequired" = "Nazwa projektu jest wymagana.";
-"appState.baseURLNeedsConfirmation" = "Potwierdz niestandardowy Base URL w Ustawieniach przed polaczeniem.";
+"appState.baseURLNeedsConfirmation" = "Potwierdź niestandardowy Base URL w Ustawieniach przed połączeniem.";
 
 /* Custom base URL confirmation */
-"settings.baseURL.confirm.title" = "Potwierdz niestandardowy Base URL";
-"settings.baseURL.confirm.body" = "Wskazujesz Cocotrack na serwer inny niz Clockify. Twoj API key trafi do tego hosta przy kazdym polaczeniu. Kontynuuj tylko jesli w pelni ufasz temu adresowi.";
-"settings.baseURL.confirm.action" = "Rozumiem — uzyj tego URL";
-"settings.baseURL.reset.action" = "Przywroc domyslny URL Clockify";
+"settings.baseURL.confirm.title" = "Potwierdź niestandardowy Base URL";
+"settings.baseURL.confirm.body" = "Wskazujesz Cocotrack na serwer inny niż Clockify. Twój API key trafi do tego hosta przy każdym połączeniu. Kontynuuj tylko jeśli w pełni ufasz temu adresowi.";
+"settings.baseURL.confirm.action" = "Rozumiem — użyj tego URL";
+"settings.baseURL.reset.action" = "Przywróć domyślny URL Clockify";
 "settings.baseURL.custom.badge" = "Niestandardowy Base URL — wymagane potwierdzenie";
 
 /* Menu bar */
 "menu.timerActive" = "Timer aktywny";
 "menu.timerStopped" = "Timer zatrzymany";
-"menu.refresh" = "Odswiez";
-"menu.openApp" = "Otworz app";
-"menu.quit" = "Wyjdz";
+"menu.refresh" = "Odśwież";
+"menu.openApp" = "Otwórz aplikację";
+"menu.quit" = "Wyjdź";
 
 /* Force projects */
 "appState.projectRequired" = "Workspace wymaga projektu. Wybierz projekt przed startem.";
-"appState.projectRequiredForStop" = "Przypisz projekt do timera, aby go zatrzymac.";
+"appState.projectRequiredForStop" = "Przypisz projekt do timera, aby go zatrzymać.";
 "project.requiredHint" = "Projekt wymagany";
 
 /* Projects */
@@ -88,23 +89,33 @@
 "project.create.title" = "Nowy projekt";
 "project.create.name" = "Nazwa projektu";
 "project.create.color" = "Kolor";
-"project.create.button" = "Utworz";
+"project.create.button" = "Utwórz";
 "appState.projectUpdated" = "Projekt zaktualizowany.";
 "appState.projectCreated" = "Projekt utworzony.";
 
 /* About / disclaimer */
 "about.disclaimer" = "Cocotrack jest niezależną aplikacją. Nie jest afiliowana, rekomendowana ani sponsorowana przez CAKE.com ani Clockify.";
 
+/* Accessibility */
+"a11y.favorite.add" = "Dodaj do ulubionych";
+"a11y.favorite.remove" = "Usuń z ulubionych";
+"a11y.elapsed" = "Czas trwania: %@";
+"a11y.startEntry" = "Uruchom timer: %@";
+"a11y.color" = "Kolor %@";
+"a11y.connectionStatus" = "Status połączenia";
+"a11y.entryNotFound" = "Nie znaleziono wpisu do edycji.";
+
 /* API errors */
 "api.error.invalidBaseURL" = "Niepoprawny URL API Clockify.";
 "api.error.missingData" = "Brak danych w odpowiedzi API.";
-"api.error.invalidResponse" = "Niepoprawna odpowiedz API.";
-"api.error.http" = "Clockify API error %d: %@";
-"api.error.unknown" = "Unknown API error";
-"api.error.network" = "Blad sieci: %@";
-"api.error.network.offline" = "brak polaczenia z internetem";
+"api.error.invalidResponse" = "Niepoprawna odpowiedź API.";
+"api.error.http" = "Błąd API Clockify %d: %@";
+"api.error.unknown" = "Nieznany błąd API";
+"api.error.network" = "Błąd sieci: %@";
+"api.error.network.offline" = "brak połączenia z internetem";
 "api.error.network.timeout" = "przekroczony czas oczekiwania";
-"api.error.network.host" = "host nieosiagalny";
-"api.error.network.tls" = "blad polaczenia TLS";
-"api.error.network.generic" = "polaczenie nieudane";
-"api.error.decoding" = "Nie udalo sie odczytac odpowiedzi API.";
+"api.error.network.host" = "host nieosiągalny";
+"api.error.network.tls" = "błąd połączenia TLS";
+"api.error.network.generic" = "połączenie nieudane";
+"api.error.decoding" = "Nie udało się odczytać odpowiedzi API.";
+"api.error.keychain" = "Nie udało się zapisać API key w Pęku kluczy. Klucz działa w tej sesji, ale nie przetrwa restartu aplikacji.";

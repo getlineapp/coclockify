@@ -11,14 +11,22 @@ enum DS {
         static let lineSoft    = dyn(light: 0xEDEAE4, dark: 0x3B362F)
         static let ink         = dyn(light: 0x2A2620, dark: 0xF4F1EC)
         static let ink2        = dyn(light: 0x5D584F, dark: 0xC3BDB3)
-        static let ink3        = dyn(light: 0x8E8980, dark: 0x8E8980)
-        static let ink4        = dyn(light: 0xBBB6AD, dark: 0x6A655B)
+        // ink3/ink4 and the semantic colours below were darkened/lightened so that
+        // every one of them clears WCAG AA (4.5:1) for body text — or 3:1 for the
+        // purely decorative ink4 — against both `bg` and `card`. The previous
+        // values sat between 1.9:1 and 3.3:1, i.e. warning and status text was
+        // measurably unreadable in light mode. Hue is preserved; only lightness moved.
+        static let ink3        = dyn(light: 0x726D64, dark: 0x9C968C)
+        static let ink4        = dyn(light: 0x8F897E, dark: 0x847E73)
         static let accent      = dyn(light: 0xD27B4D, dark: 0xEB9067)
         static let accentInk   = dyn(light: 0x6F3A1B, dark: 0xF2B997)
         static let accentBg    = dyn(light: 0xF7ECDA, dark: 0x4A3729)
-        static let ok          = dyn(light: 0x54A87C, dark: 0x67BC91)
-        static let warn        = dyn(light: 0xC29B3D, dark: 0xD9B255)
-        static let bad         = dyn(light: 0xC84F3F, dark: 0xDB6553)
+        /// Foreground for filled accent buttons. White on the light-mode terracotta,
+        /// near-black on the lighter dark-mode terracotta (white there was 2.4:1).
+        static let onAccent    = dyn(light: 0xFFFFFF, dark: 0x2A2620)
+        static let ok          = dyn(light: 0x347553, dark: 0x67BC91)
+        static let warn        = dyn(light: 0x8A6410, dark: 0xD9B255)
+        static let bad         = dyn(light: 0xB33F31, dark: 0xE87E6E)
         static let titlebar    = dyn(light: 0xF1EEE8, dark: 0x322D26)
     }
 
@@ -131,6 +139,7 @@ struct SectionLabel: View {
 struct LiveDot: View {
     var size: CGFloat = 6
     @State private var pulsing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Circle()
@@ -141,8 +150,11 @@ struct LiveDot: View {
                     .stroke(DS.Palette.ok.opacity(pulsing ? 0 : 0.55), lineWidth: pulsing ? 5 : 0)
                     .scaleEffect(pulsing ? 2.4 : 1)
             )
-            .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: false), value: pulsing)
-            .onAppear { pulsing = true }
+            .animation(reduceMotion ? nil : .easeInOut(duration: 1.6).repeatForever(autoreverses: false), value: pulsing)
+            // The indefinite pulse is decorative; honouring Reduce Motion also
+            // stops a permanent animation loop from running behind the timer.
+            .onAppear { pulsing = !reduceMotion }
+            .accessibilityHidden(true)
     }
 }
 
@@ -150,6 +162,7 @@ struct LiveDot: View {
 struct StatusDot: View {
     enum Kind { case ok, warn, off }
     let kind: Kind
+
     var color: Color {
         switch kind {
         case .ok:   return DS.Palette.ok
@@ -157,6 +170,16 @@ struct StatusDot: View {
         case .off:  return DS.Palette.ink4
         }
     }
+
+    // The dot alone encodes state by colour only, so VoiceOver gets the wording.
+    private var stateLabel: String {
+        switch kind {
+        case .ok:   return L10n.statusConnected
+        case .warn: return L10n.statusNeedsConnection
+        case .off:  return L10n.statusNotConfigured
+        }
+    }
+
     var body: some View {
         Circle()
             .fill(color)
@@ -166,6 +189,10 @@ struct StatusDot: View {
                     .stroke(color.opacity(kind == .off ? 0 : 0.25), lineWidth: 2)
                     .scaleEffect(1.4)
             )
+            .accessibilityElement()
+            .accessibilityLabel(L10n.a11yConnectionStatus)
+            .accessibilityValue(stateLabel)
+            .help(stateLabel)
     }
 }
 
@@ -177,6 +204,14 @@ struct ElapsedText: View {
     var primaryColor: Color = DS.Palette.ink
 
     var body: some View {
+        content
+            // Without this the digits are read out as five separate elements
+            // ("12", ":", "34", ":", "56").
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(L10n.a11yElapsed(text))
+    }
+
+    private var content: some View {
         let parts = text.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
         return HStack(spacing: 0) {
             if parts.count == 3 {
@@ -270,11 +305,11 @@ struct DSButtonStyle: ButtonStyle {
             border = DS.Palette.line
         case .prominent:
             bg = DS.Palette.accent
-            fg = .white
+            fg = DS.Palette.onAccent
             border = .clear
         case .danger:
             bg = DS.Palette.bad
-            fg = .white
+            fg = DS.Palette.onAccent
             border = .clear
         case .ghost:
             bg = .clear
@@ -319,12 +354,17 @@ extension ButtonStyle where Self == DSButtonStyle {
 
 // Text field matching .tfield
 struct DSTextFieldStyle: TextFieldStyle {
+    // `.textFieldStyle(.plain)` strips the native focus ring, so keyboard users
+    // previously had no visible indication of which field held focus. The
+    // `@FocusState` below was declared but never bound; it now drives the ring.
     @FocusState private var focused: Bool
+
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .textFieldStyle(.plain)
             .font(DS.Font.textField)
             .foregroundStyle(DS.Palette.ink)
+            .focused($focused)
             .padding(.horizontal, 9)
             .padding(.vertical, 5)
             .frame(minHeight: 28)
@@ -334,8 +374,9 @@ struct DSTextFieldStyle: TextFieldStyle {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: DS.Metric.textFieldRadius, style: .continuous)
-                    .strokeBorder(DS.Palette.line, lineWidth: 0.5)
+                    .strokeBorder(focused ? DS.Palette.accent : DS.Palette.line, lineWidth: focused ? 2 : 0.5)
             )
+            .animation(.easeOut(duration: 0.12), value: focused)
     }
 }
 

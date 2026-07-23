@@ -57,6 +57,10 @@ final class AppState: ObservableObject {
     @Published var forceProjects: Bool = false
     @Published var statusMessage: String = ""
     @Published var isLoading: Bool = false
+    /// True when the Keychain refused to store the API key. The key still works
+    /// for this session but will not survive a relaunch, so the UI must say so
+    /// rather than silently reporting success.
+    @Published private(set) var keychainUnavailable: Bool = false
     @Published private(set) var favoriteDescriptions: Set<String> {
         didSet { recomputeDerived() }
     }
@@ -74,18 +78,16 @@ final class AppState: ObservableObject {
     init() {
         let defaults = UserDefaults.standard
 
-        if let keychainKey = APIKeyStore.load(), !keychainKey.isEmpty {
-            self.apiKey = keychainKey
-            if defaults.string(forKey: Keys.apiKey) != nil {
-                defaults.removeObject(forKey: Keys.apiKey)
-            }
-        } else if let legacyKey = defaults.string(forKey: Keys.apiKey), !legacyKey.isEmpty {
-            self.apiKey = legacyKey
-            APIKeyStore.save(legacyKey)
+        let resolved = APIKeyMigration.resolve(
+            keychainKey: APIKeyStore.load(),
+            legacyKey: defaults.string(forKey: Keys.apiKey),
+            saveToKeychain: { APIKeyStore.save($0) }
+        )
+        self.apiKey = resolved.apiKey
+        if resolved.removeLegacyKey {
             defaults.removeObject(forKey: Keys.apiKey)
-        } else {
-            self.apiKey = ""
         }
+        self.keychainUnavailable = resolved.keychainWriteFailed
 
         self.baseURL = defaults.string(forKey: Keys.baseURL) ?? ClockifyAPIClient.defaultBaseURL
         self.workspaceOverride = defaults.string(forKey: Keys.workspaceOverride) ?? ""
@@ -258,7 +260,10 @@ final class AppState: ObservableObject {
 
     private static let dayLabelFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "EEE, d MMM"
+        // A hardcoded "EEE, d MMM" forces English field order onto every locale.
+        // The template form keeps the same fields but lets the locale decide the
+        // arrangement and separators.
+        f.setLocalizedDateFormatFromTemplate("EEEdMMM")
         return f
     }()
 
@@ -268,7 +273,7 @@ final class AppState: ObservableObject {
                 throw ClockifyAPIError.httpError(statusCode: 400, message: L10n.baseURLNeedsConfirmation)
             }
 
-            persistSettings()
+            try persistSettings()
 
             let client = try makeClient()
             let user = try await client.fetchCurrentUser()
@@ -585,17 +590,28 @@ final class AppState: ObservableObject {
         return nil
     }
 
-    private func persistSettings() {
+    private func persistSettings() throws {
         let defaults = UserDefaults.standard
+        defaults.set(baseURL, forKey: Keys.baseURL)
+        defaults.set(workspaceOverride, forKey: Keys.workspaceOverride)
+
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedKey.isEmpty {
             APIKeyStore.delete()
-        } else {
-            APIKeyStore.save(trimmedKey)
+            defaults.removeObject(forKey: Keys.apiKey)
+            keychainUnavailable = false
+            return
         }
+
+        // A failed Keychain write used to pass silently: the app reported
+        // "connected", then came back unconfigured on the next launch.
+        guard APIKeyStore.save(trimmedKey) else {
+            keychainUnavailable = true
+            throw ClockifyAPIError.keychainUnavailable
+        }
+
+        keychainUnavailable = false
         defaults.removeObject(forKey: Keys.apiKey)
-        defaults.set(baseURL, forKey: Keys.baseURL)
-        defaults.set(workspaceOverride, forKey: Keys.workspaceOverride)
     }
 
     private func persistFavorites() {

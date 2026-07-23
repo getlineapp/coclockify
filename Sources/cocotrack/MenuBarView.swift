@@ -25,6 +25,8 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.dsStandardIcon)
                 .disabled(appState.isLoading || !appState.isConnected)
+                .accessibilityLabel(L10n.refresh)
+                .help(L10n.refresh)
 
                 Button(L10n.openApp) {
                     openWindow(id: "main")

@@ -90,6 +90,11 @@ extension ClockifyTimeEntry {
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
+        // A fixed `dateFormat` without a fixed locale is not stable: when the
+        // user turns off "24-Hour Time", CFDateFormatter rewrites "HH" into a
+        // 12-hour pattern, so entry ranges silently render as e.g. "2:15 – 3:40"
+        // with no AM/PM. Pinning en_US_POSIX makes "HH:mm" mean what it says.
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "HH:mm"
         return f
     }()

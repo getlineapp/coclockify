@@ -83,6 +83,27 @@ private struct TimeEntryRow: View {
     }
 
     var body: some View {
+        // Editing an entry used to be reachable only by mouse (tap gesture or
+        // right-click). A plain Button keeps the identical look while making the
+        // row focusable, keyboard-activatable and visible to VoiceOver.
+        Button(action: onEdit) {
+            rowContent
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(descriptionText), \(entry.timeRangeText)")
+        .accessibilityHint(L10n.edit)
+        .contextMenu {
+            Button(L10n.edit) {
+                onEdit()
+            }
+            Button("Start") {
+                onStart()
+            }
+        }
+    }
+
+    private var rowContent: some View {
         HStack(spacing: 10) {
             RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                 .fill(Color(hex: projectColorHex ?? "") ?? DS.Palette.ink4)
@@ -139,16 +160,5 @@ private struct TimeEntryRow: View {
         )
         .contentShape(RoundedRectangle(cornerRadius: DS.Metric.rowRadius))
         .onHover { isHovered = $0 }
-        .onTapGesture {
-            onEdit()
-        }
-        .contextMenu {
-            Button(L10n.edit) {
-                onEdit()
-            }
-            Button("Start") {
-                onStart()
-            }
-        }
     }
 }

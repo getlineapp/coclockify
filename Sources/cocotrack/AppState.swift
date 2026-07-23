@@ -57,6 +57,10 @@ final class AppState: ObservableObject {
     @Published var forceProjects: Bool = false
     @Published var statusMessage: String = ""
     @Published var isLoading: Bool = false
+    /// True when the Keychain refused to store the API key. The key still works
+    /// for this session but will not survive a relaunch, so the UI must say so
+    /// rather than silently reporting success.
+    @Published private(set) var keychainUnavailable: Bool = false
     @Published private(set) var favoriteDescriptions: Set<String> {
         didSet { recomputeDerived() }
     }
@@ -74,18 +78,16 @@ final class AppState: ObservableObject {
     init() {
         let defaults = UserDefaults.standard
 
-        if let keychainKey = APIKeyStore.load(), !keychainKey.isEmpty {
-            self.apiKey = keychainKey
-            if defaults.string(forKey: Keys.apiKey) != nil {
-                defaults.removeObject(forKey: Keys.apiKey)
-            }
-        } else if let legacyKey = defaults.string(forKey: Keys.apiKey), !legacyKey.isEmpty {
-            self.apiKey = legacyKey
-            APIKeyStore.save(legacyKey)
+        let resolved = APIKeyMigration.resolve(
+            keychainKey: APIKeyStore.load(),
+            legacyKey: defaults.string(forKey: Keys.apiKey),
+            saveToKeychain: { APIKeyStore.save($0) }
+        )
+        self.apiKey = resolved.apiKey
+        if resolved.removeLegacyKey {
             defaults.removeObject(forKey: Keys.apiKey)
-        } else {
-            self.apiKey = ""
         }
+        self.keychainUnavailable = resolved.keychainWriteFailed
 
         self.baseURL = defaults.string(forKey: Keys.baseURL) ?? ClockifyAPIClient.defaultBaseURL
         self.workspaceOverride = defaults.string(forKey: Keys.workspaceOverride) ?? ""
@@ -258,7 +260,10 @@ final class AppState: ObservableObject {
 
     private static let dayLabelFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "EEE, d MMM"
+        // A hardcoded "EEE, d MMM" forces English field order onto every locale.
+        // The template form keeps the same fields but lets the locale decide the
+        // arrangement and separators.
+        f.setLocalizedDateFormatFromTemplate("EEEdMMM")
         return f
     }()
 
@@ -268,7 +273,7 @@ final class AppState: ObservableObject {
                 throw ClockifyAPIError.httpError(statusCode: 400, message: L10n.baseURLNeedsConfirmation)
             }
 
-            persistSettings()
+            try persistSettings()
 
             let client = try makeClient()
             let user = try await client.fetchCurrentUser()
@@ -411,11 +416,16 @@ final class AppState: ObservableObject {
                 throw ClockifyAPIError.httpError(statusCode: 400, message: L10n.endBeforeStart)
             }
 
+            // The entry must be in hand before updating it: PUT replaces the whole
+            // record, so tags and the task assignment have to be echoed back.
+            let existing = try knownEntryOrThrow(entryId)
+
             let context = try contextOrThrow()
             let payload = ClockifyUpdateTimeEntryRequest(
-                start: start.clockifyISO8601String,
+                preserving: existing,
+                start: start,
                 description: description.trimmingCharacters(in: .whitespacesAndNewlines),
-                end: end?.clockifyISO8601String,
+                end: end,
                 projectId: projectId
             )
 
@@ -434,19 +444,19 @@ final class AppState: ObservableObject {
     }
 
     func changeEntryProject(entryId: String, projectId: String?) async {
-        let entry = runningEntry?.id == entryId ? runningEntry : recentEntries.first(where: { $0.id == entryId })
-        guard let entry else { return }
-
         await runLoadingTask {
+            let entry = try knownEntryOrThrow(entryId)
+
             if let projectId, !projects.contains(where: { $0.id == projectId }) {
                 throw ClockifyAPIError.httpError(statusCode: 400, message: L10n.projectNotFound)
             }
 
             let context = try contextOrThrow()
             let payload = ClockifyUpdateTimeEntryRequest(
-                start: entry.timeInterval.start.clockifyISO8601String,
+                preserving: entry,
+                start: entry.timeInterval.start,
                 description: entry.description ?? "",
-                end: entry.timeInterval.end?.clockifyISO8601String,
+                end: entry.timeInterval.end,
                 projectId: projectId
             )
 
@@ -531,6 +541,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    /// Locates the locally-cached copy of an entry. Refusing to proceed without it
+    /// is deliberate: a blind PUT would reset every field the payload omits.
+    private func knownEntryOrThrow(_ entryId: String) throws -> ClockifyTimeEntry {
+        if let running = runningEntry, running.id == entryId {
+            return running
+        }
+        guard let entry = recentEntries.first(where: { $0.id == entryId }) else {
+            throw ClockifyAPIError.httpError(statusCode: 404, message: L10n.entryNotFound)
+        }
+        return entry
+    }
+
     private func contextOrThrow() throws -> Context {
         guard !userId.isEmpty, !workspaceId.isEmpty else {
             throw ClockifyAPIError.httpError(statusCode: 400, message: L10n.connectFirst)
@@ -585,17 +607,28 @@ final class AppState: ObservableObject {
         return nil
     }
 
-    private func persistSettings() {
+    private func persistSettings() throws {
         let defaults = UserDefaults.standard
+        defaults.set(baseURL, forKey: Keys.baseURL)
+        defaults.set(workspaceOverride, forKey: Keys.workspaceOverride)
+
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedKey.isEmpty {
             APIKeyStore.delete()
-        } else {
-            APIKeyStore.save(trimmedKey)
+            defaults.removeObject(forKey: Keys.apiKey)
+            keychainUnavailable = false
+            return
         }
+
+        // A failed Keychain write used to pass silently: the app reported
+        // "connected", then came back unconfigured on the next launch.
+        guard APIKeyStore.save(trimmedKey) else {
+            keychainUnavailable = true
+            throw ClockifyAPIError.keychainUnavailable
+        }
+
+        keychainUnavailable = false
         defaults.removeObject(forKey: Keys.apiKey)
-        defaults.set(baseURL, forKey: Keys.baseURL)
-        defaults.set(workspaceOverride, forKey: Keys.workspaceOverride)
     }
 
     private func persistFavorites() {

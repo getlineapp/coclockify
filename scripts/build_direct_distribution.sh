@@ -8,8 +8,8 @@ APP_NAME="Cocotrack"
 BUNDLE_ID="com.cocolab.cocotrack"
 EXECUTABLE_NAME="cocotrack"
 MIN_MACOS_VERSION="13.0"
-VERSION="2.3.1"
-BUILD_NUMBER="10"
+VERSION="2.3.2"
+BUILD_NUMBER="11"
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -48,10 +48,18 @@ mkdir -p "$DIST_DIR"
 echo "[1/6] Building release binary"
 swift build -c release
 
-RELEASE_BIN="$BUILD_DIR/arm64-apple-macosx/release/$EXECUTABLE_NAME"
+# The build triple was hardcoded to arm64, so this script failed outright on an
+# Intel host. `swift build --show-bin-path` reports the real output directory.
+BIN_PATH="$(swift build -c release --show-bin-path)"
+RELEASE_BIN="$BIN_PATH/$EXECUTABLE_NAME"
 if [[ ! -f "$RELEASE_BIN" ]]; then
   echo "Release binary not found: $RELEASE_BIN" >&2
   exit 1
+fi
+
+echo "Binary architectures: $(lipo -archs "$RELEASE_BIN" 2>/dev/null || echo unknown)"
+if ! lipo -archs "$RELEASE_BIN" 2>/dev/null | grep -q x86_64; then
+  echo "NOTE: this build is Apple-Silicon only and will not launch on Intel Macs." >&2
 fi
 
 echo "[2/6] Creating .app bundle"
@@ -62,7 +70,7 @@ chmod +x "$MACOS_DIR/$EXECUTABLE_NAME"
 
 mkdir -p "$RESOURCES_DIR"
 
-RESOURCE_BUNDLE="$BUILD_DIR/arm64-apple-macosx/release/cocotrack_cocotrack.bundle"
+RESOURCE_BUNDLE="$BIN_PATH/cocotrack_cocotrack.bundle"
 if [[ -d "$RESOURCE_BUNDLE" ]]; then
     cp -R "$RESOURCE_BUNDLE" "$RESOURCES_DIR/cocotrack_cocotrack.bundle"
     echo "Copied SwiftPM resource bundle"
@@ -103,20 +111,27 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <string>$VERSION</string>
   <key>CFBundleVersion</key>
   <string>$BUILD_NUMBER</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.productivity</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_MACOS_VERSION</string>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSHumanReadableCopyright</key>
+  <string>Copyright © 2026 Cocolab sp. z o.o.</string>
 </dict>
 </plist>
 PLIST
 
 echo "[3/6] Signing app bundle"
+# `--deep` is documented by Apple as unsuitable for signing (it re-signs nested
+# content with the outer options and skips entitlements). The MAS pipeline already
+# signs this same bundle shape without it; --verify --deep --strict below confirms.
 if [[ -n "$SIGN_IDENTITY" ]]; then
-  codesign --force --deep --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_DIR"
+  codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_DIR"
   echo "Signed with identity: $SIGN_IDENTITY"
 else
-  codesign --force --deep --sign - "$APP_DIR"
+  codesign --force --sign - "$APP_DIR"
   echo "Signed ad-hoc (SIGN_IDENTITY not provided)."
 fi
 
@@ -134,7 +149,9 @@ cp -R "$APP_DIR" "$TMP_DMG_DIR/"
 hdiutil create -volname "$APP_NAME" -srcfolder "$TMP_DMG_DIR" -ov -format UDZO "$DMG_PATH" > /dev/null
 
 if [[ -n "$SIGN_IDENTITY" ]]; then
-  codesign --force --sign "$SIGN_IDENTITY" "$DMG_PATH" || true
+  # This used to end in `|| true`, so a failed DMG signature produced a
+  # green build and an unsigned artifact.
+  codesign --force --sign "$SIGN_IDENTITY" "$DMG_PATH"
 fi
 
 echo "[6/6] Optional notarization"

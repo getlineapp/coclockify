@@ -25,6 +25,7 @@
 "entry.inProgress" = "in progress";
 "entry.edit" = "Edit";
 "entry.editLast" = "Edit last entry";
+"entry.editRunning" = "Edit running entry";
 
 /* Status bar */
 "status.ready" = "Ready";
@@ -95,6 +96,15 @@
 /* About / disclaimer */
 "about.disclaimer" = "Cocotrack is an independent app. Not affiliated with, endorsed by, or sponsored by CAKE.com or Clockify.";
 
+/* Accessibility */
+"a11y.favorite.add" = "Add to favorites";
+"a11y.favorite.remove" = "Remove from favorites";
+"a11y.elapsed" = "Elapsed time: %@";
+"a11y.startEntry" = "Start timer: %@";
+"a11y.color" = "Color %@";
+"a11y.connectionStatus" = "Connection status";
+"a11y.entryNotFound" = "No matching entry to edit.";
+
 /* API errors */
 "api.error.invalidBaseURL" = "Invalid Clockify API URL.";
 "api.error.missingData" = "No data in API response.";
@@ -108,3 +118,4 @@
 "api.error.network.tls" = "TLS connection failed";
 "api.error.network.generic" = "connection failed";
 "api.error.decoding" = "Could not parse API response.";
+"api.error.keychain" = "Could not save the API key to the Keychain. It works for this session but will not survive an app restart.";

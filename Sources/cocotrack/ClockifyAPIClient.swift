@@ -7,9 +7,12 @@ enum ClockifyAPIError: LocalizedError {
     case httpError(statusCode: Int, message: String)
     case networkError(String)
     case decodingError
+    case keychainUnavailable
 
     var errorDescription: String? {
         switch self {
+        case .keychainUnavailable:
+            return L10n.errorKeychainUnavailable
         case .invalidBaseURL:
             return L10n.errorInvalidBaseURL
         case .missingData:

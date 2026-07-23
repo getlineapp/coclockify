@@ -28,6 +28,7 @@ enum L10n {
     static let inProgress = NSLocalizedString("entry.inProgress", bundle: .localized, comment: "Label for entry still in progress")
     static let edit = NSLocalizedString("entry.edit", bundle: .localized, comment: "Edit menu item")
     static let editLastEntry = NSLocalizedString("entry.editLast", bundle: .localized, comment: "Context menu: edit last entry")
+    static let editRunningEntry = NSLocalizedString("entry.editRunning", bundle: .localized, comment: "Hint/label for editing the running entry")
 
     // MARK: - Status bar
     static let statusReady = NSLocalizedString("status.ready", bundle: .localized, comment: "Ready status label")
@@ -94,8 +95,27 @@ enum L10n {
     // MARK: - About / disclaimer
     static let aboutDisclaimer = NSLocalizedString("about.disclaimer", bundle: .localized, comment: "Non-affiliation disclaimer shown in Settings")
 
+    // MARK: - Accessibility
+    static let a11yFavoriteAdd = NSLocalizedString("a11y.favorite.add", bundle: .localized, comment: "VoiceOver: add favorite")
+    static let a11yFavoriteRemove = NSLocalizedString("a11y.favorite.remove", bundle: .localized, comment: "VoiceOver: remove favorite")
+    static let a11yConnectionStatus = NSLocalizedString("a11y.connectionStatus", bundle: .localized, comment: "VoiceOver: connection status indicator")
+    static let entryNotFound = NSLocalizedString("a11y.entryNotFound", bundle: .localized, comment: "Status: no matching entry to edit")
+
+    static func a11yElapsed(_ value: String) -> String {
+        String(format: NSLocalizedString("a11y.elapsed", bundle: .localized, comment: "VoiceOver: elapsed time"), value)
+    }
+
+    static func a11yStartEntry(_ description: String) -> String {
+        String(format: NSLocalizedString("a11y.startEntry", bundle: .localized, comment: "VoiceOver: start timer for description"), description)
+    }
+
+    static func a11yColor(_ value: String) -> String {
+        String(format: NSLocalizedString("a11y.color", bundle: .localized, comment: "VoiceOver: color swatch"), value)
+    }
+
     // MARK: - API errors
     static let errorInvalidBaseURL = NSLocalizedString("api.error.invalidBaseURL", bundle: .localized, comment: "Invalid base URL error")
+    static let errorKeychainUnavailable = NSLocalizedString("api.error.keychain", bundle: .localized, comment: "Keychain write failure")
     static let errorMissingData = NSLocalizedString("api.error.missingData", bundle: .localized, comment: "Missing data error")
     static let errorInvalidResponse = NSLocalizedString("api.error.invalidResponse", bundle: .localized, comment: "Invalid response error")
     static let errorUnknownApi = NSLocalizedString("api.error.unknown", bundle: .localized, comment: "Unknown API error")

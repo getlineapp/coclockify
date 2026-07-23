@@ -416,11 +416,16 @@ final class AppState: ObservableObject {
                 throw ClockifyAPIError.httpError(statusCode: 400, message: L10n.endBeforeStart)
             }
 
+            // The entry must be in hand before updating it: PUT replaces the whole
+            // record, so tags and the task assignment have to be echoed back.
+            let existing = try knownEntryOrThrow(entryId)
+
             let context = try contextOrThrow()
             let payload = ClockifyUpdateTimeEntryRequest(
-                start: start.clockifyISO8601String,
+                preserving: existing,
+                start: start,
                 description: description.trimmingCharacters(in: .whitespacesAndNewlines),
-                end: end?.clockifyISO8601String,
+                end: end,
                 projectId: projectId
             )
 
@@ -439,19 +444,19 @@ final class AppState: ObservableObject {
     }
 
     func changeEntryProject(entryId: String, projectId: String?) async {
-        let entry = runningEntry?.id == entryId ? runningEntry : recentEntries.first(where: { $0.id == entryId })
-        guard let entry else { return }
-
         await runLoadingTask {
+            let entry = try knownEntryOrThrow(entryId)
+
             if let projectId, !projects.contains(where: { $0.id == projectId }) {
                 throw ClockifyAPIError.httpError(statusCode: 400, message: L10n.projectNotFound)
             }
 
             let context = try contextOrThrow()
             let payload = ClockifyUpdateTimeEntryRequest(
-                start: entry.timeInterval.start.clockifyISO8601String,
+                preserving: entry,
+                start: entry.timeInterval.start,
                 description: entry.description ?? "",
-                end: entry.timeInterval.end?.clockifyISO8601String,
+                end: entry.timeInterval.end,
                 projectId: projectId
             )
 
@@ -534,6 +539,18 @@ final class AppState: ObservableObject {
         } catch {
             statusMessage = AppState.sanitizedErrorMessage(error)
         }
+    }
+
+    /// Locates the locally-cached copy of an entry. Refusing to proceed without it
+    /// is deliberate: a blind PUT would reset every field the payload omits.
+    private func knownEntryOrThrow(_ entryId: String) throws -> ClockifyTimeEntry {
+        if let running = runningEntry, running.id == entryId {
+            return running
+        }
+        guard let entry = recentEntries.first(where: { $0.id == entryId }) else {
+            throw ClockifyAPIError.httpError(statusCode: 404, message: L10n.entryNotFound)
+        }
+        return entry
     }
 
     private func contextOrThrow() throws -> Context {

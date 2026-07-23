@@ -22,6 +22,7 @@ struct ClockifyTimeEntry: Decodable, Identifiable {
     let projectId: String?
     let taskId: String?
     let billable: Bool?
+    let tagIds: [String]?
     let userId: String?
     let workspaceId: String?
     let timeInterval: ClockifyTimeInterval
@@ -39,11 +40,62 @@ struct ClockifyCreateTimeEntryRequest: Encodable {
     let projectId: String?
 }
 
+/// `PUT /time-entries/{id}` is a **full replace**, not a patch: any field left out
+/// of the body is reset on the server. Sending only start/description/end/projectId
+/// therefore silently destroyed the entry's tags and task assignment on every
+/// rename or project change. Verified against the live API during the audit —
+/// `tagIds: ["…"]` came back `null` after a description-only update.
+///
+/// Every field the app can carry through must therefore be echoed back explicitly.
+/// Nil fields stay omitted, which under full-replace semantics is exactly right:
+/// an absent `projectId` is how "remove the project" is expressed, and an absent
+/// `end` is how a running entry stays running.
 struct ClockifyUpdateTimeEntryRequest: Encodable {
     let start: String
     let description: String
     let end: String?
     let projectId: String?
+    let taskId: String?
+    let billable: Bool?
+    let tagIds: [String]?
+
+    init(
+        start: String,
+        description: String,
+        end: String?,
+        projectId: String?,
+        taskId: String? = nil,
+        billable: Bool? = nil,
+        tagIds: [String]? = nil
+    ) {
+        self.start = start
+        self.description = description
+        self.end = end
+        self.projectId = projectId
+        self.taskId = taskId
+        self.billable = billable
+        self.tagIds = tagIds
+    }
+
+    /// Carries every preservable field over from the entry being modified, so a
+    /// change to one attribute cannot wipe the others.
+    init(
+        preserving entry: ClockifyTimeEntry,
+        start: Date,
+        description: String,
+        end: Date?,
+        projectId: String?
+    ) {
+        self.init(
+            start: start.clockifyISO8601String,
+            description: description,
+            end: end?.clockifyISO8601String,
+            projectId: projectId,
+            taskId: entry.taskId,
+            billable: entry.billable,
+            tagIds: entry.tagIds
+        )
+    }
 }
 
 struct ClockifyCreateProjectRequest: Encodable {

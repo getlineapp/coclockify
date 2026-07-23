@@ -117,13 +117,9 @@ final class TimeEntryPayloadTests: XCTestCase {
         XCTAssertEqual(json["projectId"] as? String, "p1")
     }
 
-    /// Pins the wire format rather than endorsing it. Swift's synthesised
-    /// `Encodable` *omits* nil optionals instead of sending JSON null, so
-    /// "clear the project" and "clear the end time" are sent as absent fields.
-    /// Whether Clockify treats an absent field as "leave unchanged" or "reset"
-    /// is unverified against the live API — see AUDIT_REPORT.md (P1-3). This test
-    /// exists so that any change to that behaviour is a deliberate decision and
-    /// not an accident.
+    /// Under Clockify's full-replace PUT semantics an omitted field is reset, so
+    /// omitting nils is how "remove the project" and "keep this entry running"
+    /// are expressed. Verified against the live API during the audit.
     func testNilFieldsAreOmittedFromUpdatePayload() throws {
         let payload = ClockifyUpdateTimeEntryRequest(
             start: "2026-07-23T08:00:00.000Z",
@@ -134,8 +130,123 @@ final class TimeEntryPayloadTests: XCTestCase {
         let json = try encoded(payload)
 
         XCTAssertEqual(Set(json.keys), ["start", "description"])
-        XCTAssertNil(json["end"])
+    }
+
+    private func entry(
+        taskId: String?,
+        billable: Bool?,
+        tagIds: [String]?,
+        projectId: String? = "p1",
+        end: String? = "2026-07-23T09:00:00Z"
+    ) throws -> ClockifyTimeEntry {
+        var interval = #"{"start":"2026-07-23T08:00:00Z""#
+        if let end { interval += #","end":"\#(end)""# }
+        interval += "}"
+
+        var fields = [#""id":"e1""#, #""description":"standup""#, #""timeInterval":\#(interval)"#]
+        if let projectId { fields.append(#""projectId":"\#(projectId)""#) }
+        if let taskId { fields.append(#""taskId":"\#(taskId)""#) }
+        if let billable { fields.append(#""billable":\#(billable)"#) }
+        if let tagIds { fields.append(#""tagIds":[\#(tagIds.map { "\"\($0)\"" }.joined(separator: ","))]"#) }
+
+        return try JSONDecoder.clockifyDecoder.decode(
+            ClockifyTimeEntry.self,
+            from: Data("{\(fields.joined(separator: ","))}".utf8)
+        )
+    }
+
+    /// The audit's headline data-loss bug: `PUT /time-entries/{id}` replaces the
+    /// whole record, and the app only ever sent start/description/end/projectId —
+    /// so renaming an entry wiped its tags and task assignment on the server.
+    func testUpdatePreservesTagsAndTaskWhenOnlyTheDescriptionChanges() throws {
+        let existing = try entry(taskId: "t1", billable: true, tagIds: ["tag1", "tag2"])
+
+        let payload = ClockifyUpdateTimeEntryRequest(
+            preserving: existing,
+            start: existing.timeInterval.start,
+            description: "renamed",
+            end: existing.timeInterval.end,
+            projectId: existing.projectId
+        )
+        let json = try encoded(payload)
+
+        XCTAssertEqual(json["description"] as? String, "renamed")
+        XCTAssertEqual(json["taskId"] as? String, "t1")
+        XCTAssertEqual(json["billable"] as? Bool, true)
+        XCTAssertEqual(json["tagIds"] as? [String], ["tag1", "tag2"])
+        XCTAssertEqual(json["projectId"] as? String, "p1")
+        XCTAssertNotNil(json["end"])
+    }
+
+    func testChangingTheProjectKeepsEverythingElseIntact() throws {
+        let existing = try entry(taskId: "t1", billable: false, tagIds: ["tag1"])
+
+        let payload = ClockifyUpdateTimeEntryRequest(
+            preserving: existing,
+            start: existing.timeInterval.start,
+            description: existing.description ?? "",
+            end: existing.timeInterval.end,
+            projectId: "p2"
+        )
+        let json = try encoded(payload)
+
+        XCTAssertEqual(json["projectId"] as? String, "p2")
+        XCTAssertEqual(json["taskId"] as? String, "t1")
+        XCTAssertEqual(json["billable"] as? Bool, false)
+        XCTAssertEqual(json["tagIds"] as? [String], ["tag1"])
+    }
+
+    /// Clearing the project is expressed by omitting the field, and must not drag
+    /// the other attributes down with it.
+    func testClearingTheProjectOmitsOnlyTheProject() throws {
+        let existing = try entry(taskId: "t1", billable: true, tagIds: ["tag1"])
+
+        let payload = ClockifyUpdateTimeEntryRequest(
+            preserving: existing,
+            start: existing.timeInterval.start,
+            description: existing.description ?? "",
+            end: existing.timeInterval.end,
+            projectId: nil
+        )
+        let json = try encoded(payload)
+
         XCTAssertNil(json["projectId"])
+        XCTAssertEqual(json["tagIds"] as? [String], ["tag1"])
+        XCTAssertEqual(json["taskId"] as? String, "t1")
+    }
+
+    /// A running entry has no end; the field must stay absent so the PUT does not
+    /// close it, while its tags still survive.
+    func testRunningEntryKeepsRunningAndKeepsItsTags() throws {
+        let existing = try entry(taskId: nil, billable: true, tagIds: ["tag1"], end: nil)
+
+        let payload = ClockifyUpdateTimeEntryRequest(
+            preserving: existing,
+            start: existing.timeInterval.start,
+            description: "still going",
+            end: nil,
+            projectId: existing.projectId
+        )
+        let json = try encoded(payload)
+
+        XCTAssertNil(json["end"])
+        XCTAssertNil(json["taskId"])
+        XCTAssertEqual(json["tagIds"] as? [String], ["tag1"])
+    }
+
+    func testEntryWithoutTagsOrTaskEncodesWithoutThoseKeys() throws {
+        let existing = try entry(taskId: nil, billable: nil, tagIds: nil)
+
+        let payload = ClockifyUpdateTimeEntryRequest(
+            preserving: existing,
+            start: existing.timeInterval.start,
+            description: "plain",
+            end: existing.timeInterval.end,
+            projectId: existing.projectId
+        )
+        let json = try encoded(payload)
+
+        XCTAssertEqual(Set(json.keys), ["start", "description", "end", "projectId"])
     }
 
     func testCreatePayloadOmitsAbsentProject() throws {

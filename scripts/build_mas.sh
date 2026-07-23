@@ -60,10 +60,18 @@ mkdir -p "$DIST_DIR"
 echo "[1/7] Building release binary"
 swift build -c release
 
-RELEASE_BIN="$BUILD_DIR/arm64-apple-macosx/release/$EXECUTABLE_NAME"
+# Was a hardcoded arm64 triple, which breaks on an Intel host and silently ships
+# an Apple-Silicon-only binary.
+BIN_PATH="$(swift build -c release --show-bin-path)"
+RELEASE_BIN="$BIN_PATH/$EXECUTABLE_NAME"
 if [[ ! -f "$RELEASE_BIN" ]]; then
   echo "Release binary not found: $RELEASE_BIN" >&2
   exit 1
+fi
+
+echo "Binary architectures: $(lipo -archs "$RELEASE_BIN" 2>/dev/null || echo unknown)"
+if ! lipo -archs "$RELEASE_BIN" 2>/dev/null | grep -q x86_64; then
+  echo "NOTE: App Store listing will be Apple-Silicon only — Intel Macs cannot install it." >&2
 fi
 
 echo "[2/7] Creating .app bundle"
@@ -71,7 +79,7 @@ mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 cp "$RELEASE_BIN" "$MACOS_DIR/$EXECUTABLE_NAME"
 chmod +x "$MACOS_DIR/$EXECUTABLE_NAME"
 
-RESOURCE_BUNDLE="$BUILD_DIR/arm64-apple-macosx/release/cocotrack_cocotrack.bundle"
+RESOURCE_BUNDLE="$BIN_PATH/cocotrack_cocotrack.bundle"
 if [[ -d "$RESOURCE_BUNDLE" ]]; then
   cp -R "$RESOURCE_BUNDLE" "$RESOURCES_DIR/cocotrack_cocotrack.bundle"
   RES_PLIST="$RESOURCES_DIR/cocotrack_cocotrack.bundle/Info.plist"
@@ -114,6 +122,8 @@ cat > "$CONTENTS_DIR/Info.plist" <<PLIST
   <string>$APP_NAME</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <key>ITSAppUsesNonExemptEncryption</key>
+  <false/>
   <key>CFBundleShortVersionString</key>
   <string>$VERSION</string>
   <key>CFBundleVersion</key>
